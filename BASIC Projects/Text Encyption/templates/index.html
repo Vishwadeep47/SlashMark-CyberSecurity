@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text Encyption</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="head">
+    <div class="head-mark">AES</div>
+    <div class="head-text">
+      <h1>Text Encyption Using Cyptographic Algorithms</h1>
+      <p>Simple App To Encrypt/Decrypt User Text Ensuring Unique Outputs For Identical Inputs By using A Random IV/nonce/Salt
+        Technologies Used are Cryptography Python's Library , Flask Instead of FastAPI
+      </p>
+    </div>
+  </header>
+
+  <div class="panel-row">
+
+    <section class="panel" id="panel-encrypt">
+      <div class="panel-label">
+        <span class="dot dot-lock"></span> Encrypt
+      </div>
+
+      <label for="enc-text">Plaintext</label>
+      <textarea id="enc-text" rows="4" placeholder="Text you want to protect&hellip;"></textarea>
+
+      <label for="enc-pass">Passphrase</label>
+      <input id="enc-pass" type="password" placeholder="Used to derive the key — not stored anywhere">
+
+      <button class="btn btn-lock" id="btn-encrypt">Encrypt</button>
+
+      <div class="output" id="enc-output" hidden>
+        <div class="output-label-row">
+          <label>Ciphertext (copy this)</label>
+          <button class="btn-copy" id="btn-copy-enc" type="button" data-target="enc-result">Copy</button>
+        </div>
+        <textarea readonly rows="3" id="enc-result"></textarea>
+        <div class="byte-strip" id="enc-strip"></div>
+        <div class="strip-legend">
+          <span><i class="sw sw-salt"></i>salt (16B)</span>
+          <span><i class="sw sw-nonce"></i>nonce (12B)</span>
+          <span><i class="sw sw-cipher"></i>ciphertext + tag</span>
+        </div>
+      </div>
+      <p class="error" id="enc-error" hidden></p>
+    </section>
+
+    <section class="panel" id="panel-decrypt">
+      <div class="panel-label">
+        <span class="dot dot-key"></span> Decrypt
+      </div>
+
+      <label for="dec-text">Ciphertext</label>
+      <textarea id="dec-text" rows="4" placeholder="Paste an encrypted token&hellip;"></textarea>
+
+      <label for="dec-pass">Passphrase</label>
+      <input id="dec-pass" type="password" placeholder="Must match the passphrase used to encrypt">
+
+      <button class="btn btn-key" id="btn-decrypt">Decrypt</button>
+
+      <div class="output" id="dec-output" hidden>
+        <div class="output-label-row">
+          <label>Recovered plaintext</label>
+          <button class="btn-copy" id="btn-copy-dec" type="button" data-target="dec-result">Copy</button>
+        </div>
+        <textarea readonly rows="3" id="dec-result"></textarea>
+      </div>
+      <p class="error" id="dec-error" hidden></p>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <p>Encrypting the same text twice never produces the same output — a fresh random salt
+       </p>
+  </footer>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function showError(el, msg) {
+  el.textContent = msg;
+  el.hidden = false;
+}
+function hideError(el) {
+  el.hidden = true;
+  el.textContent = '';
+}
+
+// Visualize the salt/nonce/ciphertext breakdown of a base64 token as a colored strip.
+function renderByteStrip(base64Token) {
+  const raw = atob(base64Token);
+  const total = raw.length;
+  const saltLen = 16;
+  const nonceLen = 12;
+  const cipherLen = Math.max(total - saltLen - nonceLen, 0);
+
+  const pct = (n) => (n / total * 100).toFixed(2) + '%';
+
+  const strip = $('enc-strip');
+  strip.innerHTML = `
+    <div class="seg seg-salt" style="width:${pct(saltLen)}" title="Salt: ${saltLen} bytes"></div>
+    <div class="seg seg-nonce" style="width:${pct(nonceLen)}" title="Nonce: ${nonceLen} bytes"></div>
+    <div class="seg seg-cipher" style="width:${pct(cipherLen)}" title="Ciphertext + tag: ${cipherLen} bytes"></div>
+  `;
+}
+
+$('btn-encrypt').addEventListener('click', async () => {
+  const text = $('enc-text').value;
+  const passphrase = $('enc-pass').value;
+  const errEl = $('enc-error');
+  hideError(errEl);
+  $('enc-output').hidden = true;
+
+  try {
+    const res = await fetch('/api/encrypt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, passphrase })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Encryption failed.');
+
+    $('enc-result').value = data.result;
+    $('enc-output').hidden = false;
+    renderByteStrip(data.result);
+  } catch (e) {
+    showError(errEl, e.message);
+  }
+});
+
+$('btn-decrypt').addEventListener('click', async () => {
+  const text = $('dec-text').value;
+  const passphrase = $('dec-pass').value;
+  const errEl = $('dec-error');
+  hideError(errEl);
+  $('dec-output').hidden = true;
+
+  try {
+    const res = await fetch('/api/decrypt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, passphrase })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Decryption failed.');
+
+    $('dec-result').value = data.result;
+    $('dec-output').hidden = false;
+  } catch (e) {
+    showError(errEl, e.message);
+  }
+});
+
+// Copy-to-clipboard for both output textareas.
+// Delegated to any .btn-copy button via its data-target attribute,
+// so it works for both the encrypt and decrypt panels with one handler.
+document.querySelectorAll('.btn-copy').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const targetId = btn.getAttribute('data-target');
+    const field = $(targetId);
+    if (!field || !field.value) return;
+
+    try {
+      await navigator.clipboard.writeText(field.value);
+    } catch (e) {
+      // Fallback for browsers/contexts without Clipboard API access
+      // (e.g. non-HTTPS localhost edge cases in older browsers).
+      field.select();
+      document.execCommand('copy');
+    }
+
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('btn-copy-done');
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove('btn-copy-done');
+    }, 1500);
+  });
+});
+</script>
+
+</body>
+</html>
