@@ -1,4 +1,4 @@
-# Secure Text Vault
+# Text Encryption 
 
 A simple web app to encrypt and decrypt user-entered text using **AES-256-GCM**, with a password-derived key (PBKDF2) and a random salt + nonce on every run — so encrypting the same text twice never produces the same output.
 
@@ -30,7 +30,7 @@ Built as a learning project covering: symmetric encryption basics, IV/nonce hand
 ## Project Structure
 
 ```
-secure_text_vault/
+Text Encryption/
 ├── app.py              # Flask routes — UI page + JSON API endpoints
 ├── crypto_utils.py      # All encryption/decryption logic
 ├── requirements.txt     # Python dependencies
